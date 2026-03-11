@@ -692,6 +692,8 @@ function renderError(message) {
 
 function renderItinerary(data) {
   const { itinerary, mode, sources = [] } = data;
+  const visualBrief = itinerary.visualBrief || buildFallbackVisualBrief(itinerary);
+  const destinationImageLookup = buildDestinationImageLookup(visualBrief);
   const actionButtons = buildActionButtons(itinerary.tripTitle);
   const sourcesMarkup = sources.length
     ? `
@@ -722,50 +724,76 @@ function renderItinerary(data) {
             .join("")}
         </div>
       </div>
-      <div>
-        <p class="panel-kicker">Best-fit itinerary</p>
-        <h2>${escapeHtml(itinerary.tripTitle)}</h2>
-      </div>
-      <p class="result-intro">${escapeHtml(itinerary.summary)}</p>
-      <div class="summary-grid">
-        <article class="summary-card">
-          <p class="mini-label">Per person</p>
-          <p class="mini-value">${escapeHtml(itinerary.price.perPersonEstimate)}</p>
-          <p class="mini-copy">${escapeHtml(itinerary.price.pricingBasis)}</p>
+      <div class="visual-story-grid">
+        <article class="visual-hero-card">
+          <div class="visual-media visual-hero-media">
+            <img
+              class="dynamic-image"
+              data-image-query="${escapeAttribute(visualBrief.heroImageQuery || itinerary.tripTitle)}"
+              alt="${escapeAttribute(visualBrief.heroImageAlt || itinerary.tripTitle)}"
+            />
+            <div class="visual-hero-overlay">
+              <p class="panel-kicker">Best-fit itinerary</p>
+              <h2>${escapeHtml(itinerary.tripTitle)}</h2>
+              <p class="result-intro">${escapeHtml(itinerary.summary)}</p>
+            </div>
+          </div>
         </article>
-        <article class="summary-card">
-          <p class="mini-label">Whole trip</p>
-          <p class="mini-value">${escapeHtml(itinerary.price.totalTripEstimate)}</p>
-          <p class="mini-copy">${escapeHtml(itinerary.price.totalBasis)}</p>
+        <article class="trip-glance-card">
+          <div class="summary-grid">
+            <article class="summary-card">
+              <p class="mini-label">Per person</p>
+              <p class="mini-value">${escapeHtml(itinerary.price.perPersonEstimate)}</p>
+              <p class="mini-copy">${escapeHtml(itinerary.price.pricingBasis)}</p>
+            </article>
+            <article class="summary-card">
+              <p class="mini-label">Whole trip</p>
+              <p class="mini-value">${escapeHtml(itinerary.price.totalTripEstimate)}</p>
+              <p class="mini-copy">${escapeHtml(itinerary.price.totalBasis)}</p>
+            </article>
+          </div>
+          <article class="fit-card">
+            <p class="mini-label">Why it fits</p>
+            <p class="fit-card-copy">${escapeHtml(itinerary.fitSummary)}</p>
+            <p class="mini-copy">Start with the overview, then open each day only if you want the detail.</p>
+          </article>
+          <div class="mood-strip">
+            ${(visualBrief.moodTags || [])
+              .map((tag) => `<span class="mini-pill mood-pill">${escapeHtml(tag)}</span>`)
+              .join("")}
+          </div>
+          <div class="action-row">
+            ${actionButtons}
+          </div>
         </article>
-      </div>
-      <article class="fit-card">
-        <p class="mini-label">Why it fits</p>
-        <p class="fit-card-copy">${escapeHtml(itinerary.fitSummary)}</p>
-        <p class="mini-copy">One clear route. Easy to react to. Easy to customize.</p>
-      </article>
-      <div class="action-row">
-        ${actionButtons}
       </div>
     </section>
 
-    <section class="detail-grid">
-      <article class="detail-card">
-        <p class="panel-kicker">Destinations</p>
-        <ul>
-          ${itinerary.destinations
-            .map(
-              (destination) => `
-                <li>
-                  <strong>${escapeHtml(destination.name)}</strong>: ${escapeHtml(destination.reason)}
-                  <br />
-                  Hidden gem: ${escapeHtml(destination.hiddenGem)}
-                </li>
-              `
-            )
-            .join("")}
-        </ul>
-      </article>
+    <section class="destination-gallery">
+      ${itinerary.destinations
+        .map((destination) => {
+          const imageBrief = destinationImageLookup.get(destination.name) || {};
+          return `
+            <article class="destination-card">
+              <div class="visual-media destination-media">
+                <img
+                  class="dynamic-image"
+                  data-image-query="${escapeAttribute(imageBrief.query || `${destination.name} Vietnam travel`)}"
+                  alt="${escapeAttribute(imageBrief.alt || destination.name)}"
+                />
+                <span class="destination-badge">${escapeHtml(destination.name)}</span>
+              </div>
+              <div class="destination-copy">
+                <p>${escapeHtml(destination.reason)}</p>
+                <p class="mini-copy"><strong>Hidden gem:</strong> ${escapeHtml(destination.hiddenGem)}</p>
+              </div>
+            </article>
+          `;
+        })
+        .join("")}
+    </section>
+
+    <section class="detail-grid detail-grid-secondary">
       <article class="detail-card">
         <p class="panel-kicker">Stays</p>
         <ul>
@@ -797,40 +825,6 @@ function renderItinerary(data) {
         </ul>
       </article>
       <article class="detail-card">
-        <p class="panel-kicker">Transport + services</p>
-        <ul>
-          ${itinerary.transport.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-          ${itinerary.servicesIncluded.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-        </ul>
-      </article>
-    </section>
-
-    ${itinerary.days
-      .map(
-        (day) => `
-          <article class="day-card">
-            <div class="day-topline">
-              <span class="day-number">Day ${escapeHtml(String(day.dayNumber))}</span>
-              <span class="day-route">${escapeHtml(day.route)}</span>
-            </div>
-            <h3>${escapeHtml(day.title)}</h3>
-            <p class="detail-text">${escapeHtml(day.summary)}</p>
-            <div class="pill-row">
-              <span class="mini-pill">Stay: ${escapeHtml(day.stay)}</span>
-              <span class="mini-pill">Transport: ${escapeHtml(day.transport)}</span>
-              <span class="mini-pill">Meals: ${escapeHtml(day.meals)}</span>
-            </div>
-            <ul>
-              ${day.highlights.map((highlight) => `<li>${escapeHtml(highlight)}</li>`).join("")}
-            </ul>
-            <p class="result-note"><strong>Hidden gem:</strong> ${escapeHtml(day.hiddenGem)}</p>
-          </article>
-        `
-      )
-      .join("")}
-
-    <section class="detail-grid">
-      <article class="detail-card">
         <p class="panel-kicker">Included</p>
         <ul>
           ${itinerary.servicesIncluded.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
@@ -842,10 +836,68 @@ function renderItinerary(data) {
           ${itinerary.servicesExcluded.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
         </ul>
       </article>
+      <article class="detail-card detail-card-wide">
+        <p class="panel-kicker">Transport + service flow</p>
+        <ul>
+          ${itinerary.transport.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </article>
+    </section>
+
+    <section class="days-stack">
+      <article class="detail-card itinerary-overview">
+        <p class="panel-kicker">Route at a glance</p>
+        <ul>
+          ${itinerary.destinations
+            .map(
+              (destination) => `
+                <li>
+                  <strong>${escapeHtml(destination.name)}</strong>: ${escapeHtml(destination.reason)}
+                </li>
+              `
+            )
+            .join("")}
+        </ul>
+      </article>
+    </section>
+
+    <section class="days-stack">
+      ${itinerary.days
+      .map(
+        (day, index) => `
+          <details class="day-card" ${index === 0 ? "open" : ""}>
+            <summary class="day-summary">
+              <div class="day-summary-copy">
+                <div class="day-topline">
+                  <span class="day-number">Day ${escapeHtml(String(day.dayNumber))}</span>
+                  <span class="day-route">${escapeHtml(day.route)}</span>
+                </div>
+                <h3>${escapeHtml(day.title)}</h3>
+                <p class="mini-copy">${escapeHtml(day.summary)}</p>
+              </div>
+              <span class="day-toggle">Open</span>
+            </summary>
+            <div class="day-body">
+              <div class="pill-row">
+                <span class="mini-pill">Stay: ${escapeHtml(day.stay)}</span>
+                <span class="mini-pill">Transport: ${escapeHtml(day.transport)}</span>
+                <span class="mini-pill">Meals: ${escapeHtml(day.meals)}</span>
+              </div>
+              <ul>
+                ${day.highlights.map((highlight) => `<li>${escapeHtml(highlight)}</li>`).join("")}
+              </ul>
+              <p class="result-note"><strong>Hidden gem:</strong> ${escapeHtml(day.hiddenGem)}</p>
+            </div>
+          </details>
+        `
+      )
+      .join("")}
     </section>
 
     ${sourcesMarkup}
   `;
+
+  hydrateDynamicImages(resultShell);
 }
 
 function buildActionButtons(tripTitle) {
@@ -871,6 +923,86 @@ function buildActionButtons(tripTitle) {
 
 function normalizeWhatsapp(value) {
   return (value || "").replace(/[^\d]/g, "");
+}
+
+function buildFallbackVisualBrief(itinerary) {
+  return {
+    heroImageQuery: `${itinerary.choiceSnapshot?.[0] || "Vietnam"} travel landscape`,
+    heroImageAlt: itinerary.tripTitle,
+    destinationImages: (itinerary.destinations || []).map((destination) => ({
+      destination: destination.name,
+      query: `${destination.name} Vietnam travel`,
+      alt: destination.name
+    })),
+    moodTags: itinerary.choiceSnapshot?.slice(0, 4) || []
+  };
+}
+
+function buildDestinationImageLookup(visualBrief = {}) {
+  return new Map(
+    (visualBrief.destinationImages || []).map((entry) => [
+      entry.destination,
+      entry
+    ])
+  );
+}
+
+function hydrateDynamicImages(root) {
+  const images = root.querySelectorAll(".dynamic-image[data-image-query]");
+  images.forEach(async (image) => {
+    const query = image.dataset.imageQuery;
+    if (!query) {
+      return;
+    }
+
+    const media = image.closest(".visual-media");
+    media?.classList.add("is-loading");
+
+    try {
+      const url = await fetchWikimediaImage(query);
+      if (!url) {
+        media?.classList.add("is-fallback");
+        return;
+      }
+
+      image.src = url;
+      image.loading = "lazy";
+      image.decoding = "async";
+      media?.classList.add("is-ready");
+    } catch {
+      media?.classList.add("is-fallback");
+    } finally {
+      media?.classList.remove("is-loading");
+    }
+  });
+}
+
+const wikimediaImageCache = new Map();
+
+async function fetchWikimediaImage(query) {
+  if (wikimediaImageCache.has(query)) {
+    return wikimediaImageCache.get(query);
+  }
+
+  const url = new URL("https://commons.wikimedia.org/w/api.php");
+  url.searchParams.set("action", "query");
+  url.searchParams.set("generator", "search");
+  url.searchParams.set("gsrsearch", `${query} filetype:bitmap`);
+  url.searchParams.set("gsrnamespace", "6");
+  url.searchParams.set("gsrlimit", "1");
+  url.searchParams.set("prop", "imageinfo");
+  url.searchParams.set("iiprop", "url");
+  url.searchParams.set("iiurlwidth", "1280");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("origin", "*");
+
+  const response = await fetch(url);
+  const payload = await response.json();
+  const pages = Object.values(payload?.query?.pages || {});
+  const imageUrl = pages[0]?.imageinfo?.[0]?.thumburl || pages[0]?.imageinfo?.[0]?.url || "";
+
+  wikimediaImageCache.set(query, imageUrl);
+  return imageUrl;
 }
 
 function escapeHtml(value) {
